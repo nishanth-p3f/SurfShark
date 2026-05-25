@@ -447,6 +447,10 @@ export const db = {
     }
   },
 
+  async settleFullLoan(id, bankAccountId = null, outstandingAmount = 0) {
+    return this.markLoanAsCollected(id, bankAccountId);
+  },
+
   async updateLoanOutstanding(id, newOutstanding, bankAccountId = null, paymentAmount = 0) {
     if (await this.useSupabase()) {
       const { data, error } = await supabase.from('loans').update({

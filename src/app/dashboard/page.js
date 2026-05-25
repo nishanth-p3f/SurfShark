@@ -63,6 +63,9 @@ export default function UserDashboard() {
   const [currentCalendarDate, setCurrentCalendarDate] = useState(new Date());
   const [activeCalendarDay, setActiveCalendarDay] = useState(null);
 
+  // Glossary Accordion State
+  const [showGlossary, setShowGlossary] = useState(false);
+
   // Check auth first, then load user data
   useEffect(() => {
     setMounted(true);
@@ -717,7 +720,7 @@ export default function UserDashboard() {
               ₹{totalLent.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
             </div>
             <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
-              Dues outstanding from others
+              Money others owe you (Dues outstanding)
             </div>
           </div>
 
@@ -728,14 +731,14 @@ export default function UserDashboard() {
               ₹{totalBorrowed.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
             </div>
             <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
-              Debts you owe to others
+              Money you owe others (Debts to pay)
             </div>
           </div>
 
           {/* New Investments summary card */}
           <div className="card stat-card" style={{ borderLeft: '4px solid #6366f1', padding: '20px', minHeight: '110px' }}>
             <div className="pattern-bg"></div>
-            <div className="stat-label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div className="stat-label" style={{ display: 'flex', justifySelf: 'stretch', justifyContent: 'space-between', alignItems: 'center' }}>
               <span>Total Investments</span>
               {totalInvested > 0 && (
                 <span style={{ fontSize: '11px', fontWeight: '700', color: totalInvReturn >= 0 ? '#10b981' : '#ef4444' }}>
@@ -746,7 +749,7 @@ export default function UserDashboard() {
             <div className="stat-number" style={{ color: '#4f46e5' }}>
               ₹{totalInvValue.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
             </div>
-            <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px', display: 'flex', justifyContent: 'space-between' }}>
+            <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px', display: 'flex', justifySelf: 'stretch', justifyContent: 'space-between' }}>
               <span>Invested: ₹{totalInvested.toLocaleString('en-IN')}</span>
               <span style={{ fontWeight: '600', color: totalInvReturn >= 0 ? '#059669' : '#dc2626' }}>
                 {totalInvReturn >= 0 ? 'Profit' : 'Loss'}
@@ -761,7 +764,7 @@ export default function UserDashboard() {
               ₹{bankBalance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
             </div>
             <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
-              Across all linked bank accounts
+              Cash in hand or in bank accounts
             </div>
           </div>
 
@@ -779,9 +782,70 @@ export default function UserDashboard() {
               ₹{netWorth.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
             </div>
             <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '4px', fontWeight: '500' }}>
-              Banks + Lent + Invested − Borrowed
+              Your total clear wealth & savings
             </div>
           </div>
+        </section>
+
+        {/*💡 QUICK ONBOARDING GUIDE & GLOSSARY */}
+        <section className="card" style={{ marginBottom: '24px', padding: '16px 20px', borderLeft: '4px solid var(--accent)', backgroundColor: 'var(--bg-secondary)', position: 'relative' }}>
+          <div className="pattern-bg"></div>
+          <div 
+            onClick={() => setShowGlossary(!showGlossary)} 
+            style={{ position: 'relative', zIndex: 1, display: 'flex', justifySelf: 'stretch', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', userSelect: 'none' }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '20px' }}>💡</span>
+              <div>
+                <h4 style={{ fontSize: '14px', fontWeight: '800', margin: 0, color: 'var(--text-primary)' }}>Quick Glossary & Layman Guide</h4>
+                <p style={{ fontSize: '11px', color: 'var(--text-secondary)', margin: '2px 0 0 0' }}>Confused about terminology? Click to explore friendly explanations of financial terms.</p>
+              </div>
+            </div>
+            <span style={{ fontSize: '14px', fontWeight: 'bold', color: 'var(--accent)', transition: 'transform var(--transition)', transform: showGlossary ? 'rotate(180deg)' : 'rotate(0deg)' }}>
+              ▼
+            </span>
+          </div>
+
+          {showGlossary && (
+            <div style={{ position: 'relative', zIndex: 1, marginTop: '16px', paddingTop: '16px', borderTop: '1px solid var(--border)', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '16px', animation: 'fadeIn 0.3s ease-out' }}>
+              <div style={{ padding: '12px', backgroundColor: 'var(--bg-primary)', borderRadius: '6px', border: '1px solid var(--border)' }}>
+                <strong style={{ fontSize: '12px', color: 'var(--success)' }}>🟢 Lent Money</strong>
+                <p style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '4px', lineHeight: '1.4' }}>
+                  Use this when you **give money to someone else** (e.g., a friend or colleague). They owe this money back to you. We track it as a receivable.
+                </p>
+              </div>
+              <div style={{ padding: '12px', backgroundColor: 'var(--bg-primary)', borderRadius: '6px', border: '1px solid var(--border)' }}>
+                <strong style={{ fontSize: '12px', color: 'var(--danger)' }}>🔴 Borrowed Money</strong>
+                <p style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '4px', lineHeight: '1.4' }}>
+                  Use this when you **receive money from someone else** that you must pay back later. We track it as your payable debt.
+                </p>
+              </div>
+              <div style={{ padding: '12px', backgroundColor: 'var(--bg-primary)', borderRadius: '6px', border: '1px solid var(--border)' }}>
+                <strong style={{ fontSize: '12px', color: 'var(--accent)' }}>🏦 Bank Accounts</strong>
+                <p style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '4px', lineHeight: '1.4' }}>
+                  Keeps track of physical cash, savings, or checking deposits. Linking a bank account to a loan automatically adjusts your balance.
+                </p>
+              </div>
+              <div style={{ padding: '12px', backgroundColor: 'var(--bg-primary)', borderRadius: '6px', border: '1px solid var(--border)' }}>
+                <strong style={{ fontSize: '12px', color: '#6366f1' }}>📐 Bill Splitter</strong>
+                <p style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '4px', lineHeight: '1.4' }}>
+                  Allows you to divide a single expense (e.g. food/cabs) equally among friends. FACTOR yourself in the calculation to record only their shares!
+                </p>
+              </div>
+              <div style={{ padding: '12px', backgroundColor: 'var(--bg-primary)', borderRadius: '6px', border: '1px solid var(--border)' }}>
+                <strong style={{ fontSize: '12px', color: 'var(--text-primary)' }}>📅 Interactive Calendar</strong>
+                <p style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '4px', lineHeight: '1.4' }}>
+                  Visual dues overview. Colored dots (Green for collections, Red for payments) flag dates when cash must be exchanged. Tap a day to pre-fill dates.
+                </p>
+              </div>
+              <div style={{ padding: '12px', backgroundColor: 'var(--bg-primary)', borderRadius: '6px', border: '1px solid var(--border)' }}>
+                <strong style={{ fontSize: '12px', color: 'var(--text-primary)' }}>💼 Overall Net Worth</strong>
+                <p style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '4px', lineHeight: '1.4' }}>
+                  Your complete worth: computed as `Bank Balances + Outstanding Lent out receivables + Investments - Borrowed debt`.
+                </p>
+              </div>
+            </div>
+          )}
         </section>
 
         {/* PORTFOLIO VISUAL ANALYTICS CARD */}
@@ -1275,14 +1339,16 @@ export default function UserDashboard() {
                           gap: '4px',
                           padding: 0
                         }}
+                        title="Split an expense equally between multiple friends in one click."
                       >
-                        {splitMode ? '📐 Normal Mode' : '📐 Split Bill Mode'}
+                        {splitMode ? '📐 Normal Mode' : '📐 Split Bill Mode ℹ️'}
                       </button>
                     </div>
 
                     {splitMode ? (
                       <input
                         type="text"
+                        id="loan-contact-input"
                         className="form-input"
                         placeholder="Names separated by commas (e.g. Alex, Bob, Charlie)"
                         value={splitContacts}
@@ -1294,6 +1360,7 @@ export default function UserDashboard() {
                       <>
                         <input
                           type="text"
+                          id="loan-contact-input"
                           className="form-input"
                           placeholder="Enter or select person's name"
                           value={contactName}
@@ -1313,7 +1380,10 @@ export default function UserDashboard() {
 
                   {/* Amount */}
                   <div className="form-group" style={{ margin: 0 }}>
-                    <label className="form-label" style={{ fontWeight: '700' }}>Amount (₹)</label>
+                    <div style={{ display: 'flex', justifySelf: 'stretch', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                      <label className="form-label" style={{ fontWeight: '700', margin: 0 }}>Amount (₹)</label>
+                      <span style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: '700' }}>Quick Tap Presets</span>
+                    </div>
                     <input
                       type="number"
                       className="form-input"
@@ -1323,8 +1393,38 @@ export default function UserDashboard() {
                       required
                       step="0.01"
                       min="0.01"
-                      style={{ width: '100%' }}
+                      style={{ width: '100%', marginBottom: '8px' }}
                     />
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                      {[100, 500, 1000, 2000, 5000, 10000].map(val => (
+                        <button
+                          key={`preset-${val}`}
+                          type="button"
+                          onClick={() => setLoanAmount(val.toString())}
+                          style={{
+                            padding: '3px 8px',
+                            fontSize: '11px',
+                            fontWeight: '700',
+                            backgroundColor: 'var(--bg-secondary)',
+                            color: 'var(--text-primary)',
+                            border: '1px solid var(--border)',
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                            transition: 'var(--transition)'
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.borderColor = 'var(--accent)';
+                            e.currentTarget.style.color = 'var(--accent)';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.borderColor = 'var(--border)';
+                            e.currentTarget.style.color = 'var(--text-primary)';
+                          }}
+                        >
+                          ₹{val.toLocaleString('en-IN')}
+                        </button>
+                      ))}
+                    </div>
                   </div>
 
                   {/* Due Date */}
@@ -1342,7 +1442,9 @@ export default function UserDashboard() {
 
                   {/* Sync Bank Balance Option */}
                   <div className="form-group" style={{ margin: 0 }}>
-                    <label className="form-label" style={{ fontWeight: '700' }}>Auto-adjust Linked Bank</label>
+                    <label className="form-label" style={{ fontWeight: '700' }}>
+                      Auto-adjust Linked Bank <span style={{ color: 'var(--accent)', cursor: 'help', fontSize: '12px' }} title="If selected, we will automatically deduct/deposit this amount from the bank balance.">ℹ️</span>
+                    </label>
                     <select
                       className="form-input"
                       value={syncWithAccount}
@@ -1452,6 +1554,7 @@ export default function UserDashboard() {
                     <label className="form-label" style={{ fontWeight: '700' }}>Asset / Investment Name</label>
                     <input
                       type="text"
+                      id="investment-name-input"
                       className="form-input"
                       placeholder="e.g., HDFC Share, Gold Bond, SBI Mutual Fund"
                       value={newInvName}
@@ -1463,7 +1566,9 @@ export default function UserDashboard() {
 
                   {/* Asset Class */}
                   <div className="form-group" style={{ margin: 0 }}>
-                    <label className="form-label" style={{ fontWeight: '700' }}>Asset Class</label>
+                    <label className="form-label" style={{ fontWeight: '700' }}>
+                      Asset Class <span style={{ color: 'var(--accent)', cursor: 'help', fontSize: '12px' }} title="Category of your investment (e.g. Gold, Stocks). Helps organize your portfolio.">ℹ️</span>
+                    </label>
                     <select
                       className="form-input"
                       value={newInvClass}
@@ -1483,7 +1588,10 @@ export default function UserDashboard() {
 
                   {/* Invested Amount */}
                   <div className="form-group" style={{ margin: 0 }}>
-                    <label className="form-label" style={{ fontWeight: '700' }}>Amount Invested (₹)</label>
+                    <div style={{ display: 'flex', justifySelf: 'stretch', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                      <label className="form-label" style={{ fontWeight: '700', margin: 0 }}>Amount Invested (₹)</label>
+                      <span style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: '700' }}>Quick Tap Presets</span>
+                    </div>
                     <input
                       type="number"
                       className="form-input"
@@ -1493,13 +1601,48 @@ export default function UserDashboard() {
                       required
                       step="0.01"
                       min="0.01"
-                      style={{ width: '100%' }}
+                      style={{ width: '100%', marginBottom: '8px' }}
                     />
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                      {[1000, 5000, 10000, 25000, 50000, 100000].map(val => (
+                        <button
+                          key={`inv-preset-${val}`}
+                          type="button"
+                          onClick={() => {
+                            setNewInvAmount(val.toString());
+                            if (!newInvValue) setNewInvValue(val.toString());
+                          }}
+                          style={{
+                            padding: '3px 8px',
+                            fontSize: '11px',
+                            fontWeight: '700',
+                            backgroundColor: 'var(--bg-secondary)',
+                            color: 'var(--text-primary)',
+                            border: '1px solid var(--border)',
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                            transition: 'var(--transition)'
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.borderColor = 'var(--accent)';
+                            e.currentTarget.style.color = 'var(--accent)';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.borderColor = 'var(--border)';
+                            e.currentTarget.style.color = 'var(--text-primary)';
+                          }}
+                        >
+                          ₹{val.toLocaleString('en-IN')}
+                        </button>
+                      ))}
+                    </div>
                   </div>
 
                   {/* Current Market Value */}
                   <div className="form-group" style={{ margin: 0 }}>
-                    <label className="form-label" style={{ fontWeight: '700' }}>Current Market Value (₹)</label>
+                    <label className="form-label" style={{ fontWeight: '700' }}>
+                      Current Market Value (₹) <span style={{ color: 'var(--accent)', cursor: 'help', fontSize: '12px' }} title="Current valuation of this asset. If empty, we default to the amount invested.">ℹ️</span>
+                    </label>
                     <input
                       type="number"
                       className="form-input"
@@ -1514,7 +1657,9 @@ export default function UserDashboard() {
 
                   {/* Linked account deduction */}
                   <div className="form-group" style={{ margin: 0 }}>
-                    <label className="form-label" style={{ fontWeight: '700' }}>Deduct principal from Bank</label>
+                    <label className="form-label" style={{ fontWeight: '700' }}>
+                      Deduct principal from Bank <span style={{ color: 'var(--accent)', cursor: 'help', fontSize: '12px' }} title="If selected, we will automatically deduct the invested principal from the bank balance.">ℹ️</span>
+                    </label>
                     <select
                       className="form-input"
                       value={syncInvWithAccount}
@@ -1685,9 +1830,52 @@ export default function UserDashboard() {
                 {activeTab === 'investments' ? (
                   /* I. INVESTMENTS LISTING TAB */
                   investments.length === 0 ? (
-                    <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--text-muted)' }}>
-                      <div style={{ fontSize: '32px', marginBottom: '8px' }}>📂</div>
-                      <p style={{ fontSize: '14px' }}>No active investments found. Add stocks or gold assets above!</p>
+                    <div style={{
+                      padding: '30px 20px',
+                      borderRadius: '8px',
+                      border: '2px dashed var(--border)',
+                      backgroundColor: 'rgba(255,255,255,0.01)',
+                      textAlign: 'center',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: '12px'
+                    }}>
+                      <span style={{ fontSize: '32px', opacity: 0.8 }}>📂</span>
+                      <div>
+                        <div style={{ fontWeight: '700', fontSize: '14px', marginBottom: '4px', color: 'var(--text-primary)' }}>No Investments Tracked</div>
+                        <div style={{ color: 'var(--text-muted)', fontSize: '12px', lineHeight: '1.4', maxWidth: '320px', margin: '0 auto' }}>
+                          Add your gold, mutual funds, stock market assets, or real estate here to view real-time valuation and ROI.
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setActiveCreationTab('investment');
+                          setTimeout(() => {
+                            const input = document.getElementById('investment-name-input');
+                            if (input) {
+                              input.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                              input.focus();
+                            }
+                          }, 100);
+                        }}
+                        style={{
+                          padding: '8px 16px',
+                          fontSize: '12px',
+                          fontWeight: '700',
+                          backgroundColor: 'var(--accent)',
+                          color: '#000',
+                          border: 'none',
+                          borderRadius: '4px',
+                          cursor: 'pointer',
+                          transition: 'var(--transition)'
+                        }}
+                        onMouseEnter={(e) => { e.currentTarget.style.filter = 'brightness(1.1)'; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.filter = 'none'; }}
+                      >
+                        💼 Track Your First Investment
+                      </button>
                     </div>
                   ) : (
                     investments.map(inv => {
@@ -1778,9 +1966,52 @@ export default function UserDashboard() {
                 ) : (
                   /* II. LOANS LISTING TAB */
                   filteredLoans.length === 0 ? (
-                    <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--text-muted)' }}>
-                      <div style={{ fontSize: '32px', marginBottom: '8px' }}>📂</div>
-                      <p style={{ fontSize: '14px' }}>No loan records found in this category.</p>
+                    <div style={{
+                      padding: '30px 20px',
+                      borderRadius: '8px',
+                      border: '2px dashed var(--border)',
+                      backgroundColor: 'rgba(255,255,255,0.01)',
+                      textAlign: 'center',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: '12px'
+                    }}>
+                      <span style={{ fontSize: '32px', opacity: 0.8 }}>📂</span>
+                      <div>
+                        <div style={{ fontWeight: '700', fontSize: '14px', marginBottom: '4px', color: 'var(--text-primary)' }}>No Active Loans or Debts</div>
+                        <div style={{ color: 'var(--text-muted)', fontSize: '12px', lineHeight: '1.4', maxWidth: '320px', margin: '0 auto' }}>
+                          Record who owes you money or who you owe money to. Keep track of dues, split bills, and settle payments.
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setActiveCreationTab('loan');
+                          setTimeout(() => {
+                            const input = document.getElementById('loan-contact-input');
+                            if (input) {
+                              input.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                              input.focus();
+                            }
+                          }, 100);
+                        }}
+                        style={{
+                          padding: '8px 16px',
+                          fontSize: '12px',
+                          fontWeight: '700',
+                          backgroundColor: 'var(--accent)',
+                          color: '#000',
+                          border: 'none',
+                          borderRadius: '4px',
+                          cursor: 'pointer',
+                          transition: 'var(--transition)'
+                        }}
+                        onMouseEnter={(e) => { e.currentTarget.style.filter = 'brightness(1.1)'; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.filter = 'none'; }}
+                      >
+                        ➕ Record First Loan Entry
+                      </button>
                     </div>
                   ) : (
                     filteredLoans.map(loan => {
@@ -1956,9 +2187,51 @@ export default function UserDashboard() {
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '20px' }}>
                 {accounts.length === 0 ? (
-                  <p style={{ color: 'var(--text-muted)', fontSize: '13px', fontStyle: 'italic', textAlign: 'center', padding: '16px 0' }}>
-                    No bank accounts linked yet. Add one below!
-                  </p>
+                  <div style={{
+                    padding: '24px 16px',
+                    borderRadius: '8px',
+                    border: '2px dashed var(--border)',
+                    backgroundColor: 'rgba(255,255,255,0.01)',
+                    textAlign: 'center',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: '12px',
+                    margin: '10px 0'
+                  }}>
+                    <span style={{ fontSize: '28px', opacity: 0.8 }}>🏦</span>
+                    <div>
+                      <div style={{ fontWeight: '700', fontSize: '14px', marginBottom: '4px', color: 'var(--text-primary)' }}>No Bank Accounts Linked</div>
+                      <div style={{ color: 'var(--text-muted)', fontSize: '12px', lineHeight: '1.4' }}>
+                        Connect bank balances to auto-deduct loan payments and track investments seamlessly.
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const input = document.getElementById('bank-name-input');
+                        if (input) {
+                          input.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                          input.focus();
+                        }
+                      }}
+                      style={{
+                        padding: '6px 14px',
+                        fontSize: '12px',
+                        fontWeight: '700',
+                        backgroundColor: 'var(--accent)',
+                        color: '#000',
+                        border: 'none',
+                        borderRadius: '4px',
+                        cursor: 'pointer',
+                        transition: 'var(--transition)'
+                      }}
+                      onMouseEnter={(e) => { e.currentTarget.style.filter = 'brightness(1.1)'; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.filter = 'none'; }}
+                    >
+                      🏦 Add Your First Bank Account
+                    </button>
+                  </div>
                 ) : (
                   accounts.map(acc => (
                     <div 
@@ -2036,6 +2309,7 @@ export default function UserDashboard() {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '8px' }}>
                   <input
                     type="text"
+                    id="bank-name-input"
                     placeholder="Bank Name"
                     className="form-input"
                     value={newAccName}
