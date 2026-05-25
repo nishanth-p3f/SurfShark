@@ -47,11 +47,21 @@ export default function UserDashboard() {
   const [payAmount, setPayAmount] = useState('');
   const [payAccountId, setPayAccountId] = useState('');
 
-  // Contact Filtration State
+  // Contact & Date Filtration States
   const [selectedContactFilter, setSelectedContactFilter] = useState('');
+  const [selectedDateFilter, setSelectedDateFilter] = useState('');
 
   // Quick reminder / snooze panel state
   const [snoozeLoanId, setSnoozeLoanId] = useState(null);
+
+  // Split Bill Form States
+  const [splitMode, setSplitMode] = useState(false);
+  const [splitContacts, setSplitContacts] = useState('');
+  const [includeSelfInSplit, setIncludeSelfInSplit] = useState(true);
+
+  // Dues Calendar States
+  const [currentCalendarDate, setCurrentCalendarDate] = useState(new Date());
+  const [activeCalendarDay, setActiveCalendarDay] = useState(null);
 
   // Check auth first, then load user data
   useEffect(() => {
@@ -143,20 +153,44 @@ export default function UserDashboard() {
     }
   };
 
-  // Add Loan (Lend or Borrow)
+  // Add Loan (Lend or Borrow with Split Mode)
   const handleAddLoan = async (e) => {
     e.preventDefault();
-    if (!contactName.trim() || !loanAmount || !loanDueDate) return;
+    if (splitMode) {
+      if (!splitContacts.trim() || !loanAmount || !loanDueDate) return;
+    } else {
+      if (!contactName.trim() || !loanAmount || !loanDueDate) return;
+    }
 
     const amt = parseFloat(loanAmount);
     try {
-      await db.addLoan({
-        type: loanType,
-        contact_name: contactName,
-        amount: amt,
-        due_date: loanDueDate,
-        notes: loanNotes,
-      });
+      if (splitMode) {
+        const names = splitContacts.split(',').map(n => n.trim()).filter(Boolean);
+        if (names.length === 0) {
+          alert('Please enter at least one contact name to split with.');
+          return;
+        }
+        const divisor = names.length + (includeSelfInSplit ? 1 : 0);
+        const shareAmount = amt / divisor;
+
+        for (const name of names) {
+          await db.addLoan({
+            type: loanType,
+            contact_name: name,
+            amount: shareAmount,
+            due_date: loanDueDate,
+            notes: `${loanNotes ? loanNotes + ' ' : ''}(Split share of total ₹${amt.toLocaleString('en-IN')})`,
+          });
+        }
+      } else {
+        await db.addLoan({
+          type: loanType,
+          contact_name: contactName,
+          amount: amt,
+          due_date: loanDueDate,
+          notes: loanNotes,
+        });
+      }
 
       if (syncWithAccount) {
         const account = accounts.find(a => a.id === syncWithAccount);
@@ -168,10 +202,12 @@ export default function UserDashboard() {
       }
 
       setContactName('');
+      setSplitContacts('');
       setLoanAmount('');
       setLoanDueDate('');
       setLoanNotes('');
       setSyncWithAccount('');
+      setSplitMode(false);
       await refreshData();
     } catch (err) {
       alert('Failed to save loan record');
@@ -410,10 +446,68 @@ export default function UserDashboard() {
 
   const activeLoans = loans.filter(l => l.status === 'active');
 
-  // Scope active loans calculations specifically to the selected contact when filtered
-  const scopedActiveLoans = selectedContactFilter
-    ? activeLoans.filter(l => l.contact_name?.trim().toLowerCase() === selectedContactFilter.trim().toLowerCase())
-    : activeLoans;
+  // Scope active loans calculations specifically to the selected contact and date when filtered
+  const scopedActiveLoans = activeLoans.filter(l => {
+    if (selectedContactFilter && l.contact_name?.trim().toLowerCase() !== selectedContactFilter.trim().toLowerCase()) {
+      return false;
+    }
+    if (selectedDateFilter && l.due_date !== selectedDateFilter) {
+      return false;
+    }
+    return true;
+  });
+
+  // Dues Calendar math and helpers
+  const calendarYear = currentCalendarDate.getFullYear();
+  const calendarMonth = currentCalendarDate.getMonth();
+
+  const handlePrevMonth = () => {
+    setCurrentCalendarDate(new Date(calendarYear, calendarMonth - 1, 1));
+    setActiveCalendarDay(null);
+  };
+
+  const handleNextMonth = () => {
+    setCurrentCalendarDate(new Date(calendarYear, calendarMonth + 1, 1));
+    setActiveCalendarDay(null);
+  };
+
+  const monthNames = [
+    "January", "February", "March", "April", "May", "June", 
+    "July", "August", "September", "October", "November", "December"
+  ];
+
+  // Map days of the calendar grid
+  const calendarDays = [];
+  const firstDayIndex = new Date(calendarYear, calendarMonth, 1).getDay();
+  const totalDays = new Date(calendarYear, calendarMonth + 1, 0).getDate();
+
+  for (let i = 0; i < firstDayIndex; i++) {
+    calendarDays.push(null);
+  }
+  for (let d = 1; d <= totalDays; d++) {
+    calendarDays.push(new Date(calendarYear, calendarMonth, d));
+  }
+
+  // Group active loans by due date string format "YYYY-MM-DD"
+  const getDuesForDate = (date) => {
+    if (!date) return { lends: [], borrows: [] };
+    
+    // Format calendar date object as YYYY-MM-DD
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    const dateStr = `${y}-${m}-${d}`;
+
+    const dayLends = activeLoans.filter(l => l.type === 'lend' && l.due_date === dateStr);
+    const dayBorrows = activeLoans.filter(l => l.type === 'borrow' && l.due_date === dateStr);
+
+    return { lends: dayLends, borrows: dayBorrows };
+  };
+
+  const handleSelectCalendarDay = (date) => {
+    if (!date) return;
+    setActiveCalendarDay(date);
+  };
 
   const totalLent = scopedActiveLoans.filter(l => l.type === 'lend').reduce((sum, l) => sum + parseFloat(l.outstanding_amount), 0);
   const totalBorrowed = scopedActiveLoans.filter(l => l.type === 'borrow').reduce((sum, l) => sum + parseFloat(l.outstanding_amount), 0);
@@ -464,9 +558,12 @@ export default function UserDashboard() {
     ? `conic-gradient(${segments.join(', ')})`
     : `var(--border)`;
 
-  // Filtered Loans for listing (Applies tab filter and contact scope)
+  // Filtered Loans for listing (Applies tab filter, contact scope, and date scope)
   const filteredLoans = loans.filter(l => {
     if (selectedContactFilter && l.contact_name?.trim().toLowerCase() !== selectedContactFilter.trim().toLowerCase()) {
+      return false;
+    }
+    if (selectedDateFilter && l.due_date !== selectedDateFilter) {
       return false;
     }
     if (activeTab === 'active') return l.status === 'active';
@@ -821,6 +918,227 @@ export default function UserDashboard() {
           </div>
         </section>
 
+        {/* INTERACTIVE DUES CALENDAR CARD */}
+        <section className="card" style={{ marginBottom: '32px', padding: '24px', position: 'relative', overflow: 'hidden' }}>
+          <div className="pattern-bg"></div>
+          <div style={{ position: 'relative', zIndex: 1 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              
+              {/* Calendar Header with Controls */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
+                <div>
+                  <h3 style={{ fontSize: '18px', fontWeight: '900', letterSpacing: '-0.03em', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span>📅</span> Interactive Dues Calendar
+                  </h3>
+                  <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '4px' }}>
+                    Monitor receivables (Lent Out) and payables (Borrowed) schedules dynamically across dates.
+                  </p>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', backgroundColor: 'var(--bg-secondary)', padding: '6px 12px', borderRadius: '8px', border: '1px solid var(--border)' }}>
+                  <button 
+                    onClick={handlePrevMonth}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '16px', fontWeight: 'bold', color: 'var(--text-primary)', padding: '0 4px' }}
+                    title="Previous Month"
+                  >
+                    ←
+                  </button>
+                  <span style={{ fontSize: '13px', fontWeight: '800', color: 'var(--text-primary)', minWidth: '110px', textAlign: 'center', textTransform: 'uppercase', letterSpacing: '0.02em' }}>
+                    {monthNames[calendarMonth]} {calendarYear}
+                  </span>
+                  <button 
+                    onClick={handleNextMonth}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '16px', fontWeight: 'bold', color: 'var(--text-primary)', padding: '0 4px' }}
+                    title="Next Month"
+                  >
+                    →
+                  </button>
+                </div>
+              </div>
+
+              {/* Grid Layout: Calendar on Left/Top, Detailed day list on Right/Bottom */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '28px' }}>
+                
+                {/* 1. Month Grid */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  {/* Weekday headers */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '6px', textAlign: 'center' }}>
+                    {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+                      <span key={day} style={{ fontSize: '11px', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.02em' }}>
+                        {day}
+                      </span>
+                    ))}
+                  </div>
+
+                  {/* Days grid */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '6px' }}>
+                    {calendarDays.map((date, idx) => {
+                      if (!date) {
+                        return <div key={`empty-${idx}`} style={{ aspectRatio: '1', backgroundColor: 'transparent' }} />;
+                      }
+
+                      const { lends, borrows } = getDuesForDate(date);
+                      const isSelected = activeCalendarDay && 
+                        activeCalendarDay.getDate() === date.getDate() && 
+                        activeCalendarDay.getMonth() === date.getMonth() && 
+                        activeCalendarDay.getFullYear() === date.getFullYear();
+
+                      const isToday = new Date().toDateString() === date.toDateString();
+
+                      const hasLends = lends.length > 0;
+                      const hasBorrows = borrows.length > 0;
+
+                      return (
+                        <div
+                          key={`day-${date.getDate()}`}
+                          onClick={() => handleSelectCalendarDay(date)}
+                          style={{
+                            aspectRatio: '1',
+                            borderRadius: '6px',
+                            border: isSelected 
+                              ? '2px solid var(--accent)' 
+                              : isToday 
+                                ? '1px solid var(--text-muted)' 
+                                : '1px solid var(--border)',
+                            backgroundColor: isSelected 
+                              ? 'var(--accent-light)' 
+                              : isToday 
+                                ? 'var(--bg-secondary)' 
+                                : 'var(--bg-primary)',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            padding: '4px',
+                            cursor: 'pointer',
+                            position: 'relative',
+                            transition: 'var(--transition)'
+                          }}
+                          title={`Click to view dues for ${date.toLocaleDateString()}`}
+                        >
+                          <span style={{ fontSize: '12px', fontWeight: isToday || isSelected ? '800' : '500', color: isSelected ? 'var(--accent)' : 'var(--text-primary)' }}>
+                            {date.getDate()}
+                          </span>
+
+                          {/* Visual Dues Indicators */}
+                          <div style={{ display: 'flex', gap: '2px', width: '100%', justifyContent: 'center' }}>
+                            {hasLends && (
+                              <span 
+                                style={{ 
+                                  width: '5px', 
+                                  height: '5px', 
+                                  borderRadius: '50%', 
+                                  backgroundColor: 'var(--success)' 
+                                }} 
+                                title={`${lends.length} Lent out item(s)`}
+                              />
+                            )}
+                            {hasBorrows && (
+                              <span 
+                                style={{ 
+                                  width: '5px', 
+                                  height: '5px', 
+                                  borderRadius: '50%', 
+                                  backgroundColor: 'var(--danger)' 
+                                }} 
+                                title={`${borrows.length} Borrowed item(s)`}
+                              />
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* 2. Detailed Dues breakdown panel for Selected Day */}
+                <div 
+                  style={{ 
+                    backgroundColor: 'var(--bg-secondary)', 
+                    padding: '16px', 
+                    borderRadius: '8px', 
+                    border: '1px solid var(--border)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between',
+                    minHeight: '200px'
+                  }}
+                >
+                  <div>
+                    <h4 style={{ fontSize: '13px', fontWeight: '800', borderBottom: '1px solid var(--border)', paddingBottom: '6px', marginBottom: '12px', color: 'var(--text-primary)', textTransform: 'uppercase', letterSpacing: '0.02em' }}>
+                      {activeCalendarDay 
+                        ? `Dues: ${activeCalendarDay.toLocaleDateString('en-IN', { dateStyle: 'medium' })}` 
+                        : 'Select a date on calendar'}
+                    </h4>
+
+                    {activeCalendarDay ? (
+                      (() => {
+                        const { lends, borrows } = getDuesForDate(activeCalendarDay);
+                        if (lends.length === 0 && borrows.length === 0) {
+                          return (
+                            <p style={{ color: 'var(--text-muted)', fontSize: '12px', fontStyle: 'italic', textAlign: 'center', padding: '20px 0' }}>
+                              No dues scheduled on this date.
+                            </p>
+                          );
+                        }
+
+                        return (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '180px', overflowY: 'auto' }}>
+                            {/* Receivables List */}
+                            {lends.map(l => (
+                              <div key={l.id} style={{ display: 'flex', justifySelf: 'stretch', justifyContent: 'space-between', alignItems: 'center', padding: '6px 8px', backgroundColor: 'var(--bg-primary)', borderRadius: '4px', borderLeft: '3px solid var(--success)', fontSize: '12px' }}>
+                                <span style={{ fontWeight: '700', color: 'var(--text-primary)' }}>{l.contact_name}</span>
+                                <span style={{ fontWeight: '800', color: 'var(--success)' }}>+₹{parseFloat(l.outstanding_amount).toLocaleString('en-IN')}</span>
+                              </div>
+                            ))}
+
+                            {/* Payables List */}
+                            {borrows.map(b => (
+                              <div key={b.id} style={{ display: 'flex', justifySelf: 'stretch', justifyContent: 'space-between', alignItems: 'center', padding: '6px 8px', backgroundColor: 'var(--bg-primary)', borderRadius: '4px', borderLeft: '3px solid var(--danger)', fontSize: '12px' }}>
+                                <span style={{ fontWeight: '700', color: 'var(--text-primary)' }}>{b.contact_name}</span>
+                                <span style={{ fontWeight: '800', color: 'var(--danger)' }}>-₹{parseFloat(b.outstanding_amount).toLocaleString('en-IN')}</span>
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      })()
+                    ) : (
+                      <p style={{ color: 'var(--text-muted)', fontSize: '12px', fontStyle: 'italic', textAlign: 'center', padding: '40px 0' }}>
+                        Click on any day in the monthly calendar to explore recorded split balances or schedule alerts.
+                      </p>
+                    )}
+                  </div>
+
+                  {activeCalendarDay && (
+                    <div style={{ borderTop: '1px solid var(--border)', paddingTop: '12px', marginTop: '12px' }}>
+                      <button
+                        onClick={() => {
+                          const y = activeCalendarDay.getFullYear();
+                          const m = String(activeCalendarDay.getMonth() + 1).padStart(2, '0');
+                          const d = String(activeCalendarDay.getDate()).padStart(2, '0');
+                          const dateStr = `${y}-${m}-${d}`;
+                          
+                          setLoanDueDate(dateStr);
+                          
+                          // Scroll to create form smoothly
+                          const createSec = document.getElementById('create-record-section');
+                          if (createSec) createSec.scrollIntoView({ behavior: 'smooth' });
+                        }}
+                        className="btn btn-secondary btn-sm btn-full"
+                        style={{ padding: '6px', fontSize: '12px', fontWeight: 'bold' }}
+                      >
+                        📅 Select Date for New Entry
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+              </div>
+
+            </div>
+          </div>
+        </section>
+
         {/* SYSTEM CONTROL QUICK ACTION BUTTONS */}
         <section className="card" style={{ marginBottom: '32px', padding: '18px 24px' }}>
           <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '16px' }}>
@@ -931,18 +1249,66 @@ export default function UserDashboard() {
                     </div>
                   </div>
 
-                  {/* Contact Name */}
+                  {/* Contact Input / Split Bill Mode Toggle */}
                   <div className="form-group" style={{ margin: 0 }}>
-                    <label className="form-label" style={{ fontWeight: '700' }}>{loanType === 'lend' ? 'Lent To (Debtor)' : 'Borrowed From (Creditor)'}</label>
-                    <input
-                      type="text"
-                      className="form-input"
-                      placeholder="Enter person's name"
-                      value={contactName}
-                      onChange={(e) => setContactName(e.target.value)}
-                      required
-                      style={{ width: '100%' }}
-                    />
+                    <div style={{ display: 'flex', justifySelf: 'stretch', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                      <label className="form-label" style={{ fontWeight: '700', margin: 0 }}>
+                        {splitMode 
+                          ? 'Split Between Contacts' 
+                          : (loanType === 'lend' ? 'Lent To (Debtor)' : 'Borrowed From (Creditor)')}
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSplitMode(!splitMode);
+                          setSplitContacts('');
+                        }}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: splitMode ? 'var(--accent)' : 'var(--text-secondary)',
+                          fontSize: '11px',
+                          fontWeight: '800',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          padding: 0
+                        }}
+                      >
+                        {splitMode ? '📐 Normal Mode' : '📐 Split Bill Mode'}
+                      </button>
+                    </div>
+
+                    {splitMode ? (
+                      <input
+                        type="text"
+                        className="form-input"
+                        placeholder="Names separated by commas (e.g. Alex, Bob, Charlie)"
+                        value={splitContacts}
+                        onChange={(e) => setSplitContacts(e.target.value)}
+                        required
+                        style={{ width: '100%' }}
+                      />
+                    ) : (
+                      <>
+                        <input
+                          type="text"
+                          className="form-input"
+                          placeholder="Enter or select person's name"
+                          value={contactName}
+                          onChange={(e) => setContactName(e.target.value)}
+                          list="existing-contacts-list"
+                          required
+                          style={{ width: '100%' }}
+                        />
+                        <datalist id="existing-contacts-list">
+                          {uniqueContacts.map(c => (
+                            <option key={c} value={c} />
+                          ))}
+                        </datalist>
+                      </>
+                    )}
                   </div>
 
                   {/* Amount */}
@@ -1004,6 +1370,65 @@ export default function UserDashboard() {
                       style={{ width: '100%' }}
                     />
                   </div>
+
+                  {splitMode && (
+                    <div style={{ gridColumn: '1 / -1', backgroundColor: 'var(--bg-secondary)', padding: '14px', borderRadius: '6px', border: '1px solid var(--border)' }}>
+                      <div style={{ display: 'flex', justifySelf: 'stretch', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <input 
+                            type="checkbox" 
+                            id="include-self-split"
+                            checked={includeSelfInSplit}
+                            onChange={(e) => setIncludeSelfInSplit(e.target.checked)}
+                            style={{ cursor: 'pointer' }}
+                          />
+                          <label htmlFor="include-self-split" style={{ fontSize: '12px', fontWeight: '700', color: 'var(--text-secondary)', cursor: 'pointer', margin: 0 }}>
+                            Include myself in split (divide equally including me)
+                          </label>
+                        </div>
+                        
+                        <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: '600' }}>
+                          {loanAmount && !isNaN(parseFloat(loanAmount)) ? (
+                            (() => {
+                              const namesList = splitContacts.split(',').map(n => n.trim()).filter(Boolean);
+                              const divisor = namesList.length + (includeSelfInSplit ? 1 : 0);
+                              const share = parseFloat(loanAmount) / (divisor || 1);
+                              return `Total share: ₹${share.toLocaleString('en-IN', { minimumFractionDigits: 2 })} per person`;
+                            })()
+                          ) : 'Enter total amount to calculate shares'}
+                        </div>
+                      </div>
+                      
+                      {/* Live splits preview */}
+                      {splitContacts.trim() && loanAmount && !isNaN(parseFloat(loanAmount)) && (
+                        <div style={{ marginTop: '10px', paddingTop: '10px', borderTop: '1px solid var(--border)' }}>
+                          <span style={{ fontSize: '11px', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.02em' }}>Splits Preview:</span>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '6px' }}>
+                            {(() => {
+                              const namesList = splitContacts.split(',').map(n => n.trim()).filter(Boolean);
+                              const divisor = namesList.length + (includeSelfInSplit ? 1 : 0);
+                              const share = parseFloat(loanAmount) / (divisor || 1);
+                              
+                              const badges = namesList.map(name => (
+                                <span key={name} className="badge" style={{ backgroundColor: 'var(--accent-light)', color: 'var(--accent)', border: '1px solid var(--accent)', padding: '4px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold' }}>
+                                  {name}: ₹{share.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                                </span>
+                              ));
+
+                              if (includeSelfInSplit) {
+                                badges.unshift(
+                                  <span key="myself" className="badge" style={{ backgroundColor: 'var(--border)', color: 'var(--text-secondary)', border: '1px solid var(--text-muted)', padding: '4px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold' }}>
+                                    Myself (My share): ₹{share.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                                  </span>
+                                );
+                              }
+                              return badges;
+                            })()}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                 </div>
 
@@ -1178,47 +1603,79 @@ export default function UserDashboard() {
                 </div>
               </div>
 
-              {/* Person-wise filter select box */}
+              {/* Filtration bar with Person and Date selectors */}
               {activeTab !== 'investments' && (
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', alignItems: 'center', backgroundColor: 'var(--bg-secondary)', padding: '10px 14px', borderRadius: '6px', marginBottom: '20px', border: '1px solid var(--border)' }}>
-                  <label style={{ fontSize: '12px', fontWeight: '700', color: 'var(--text-secondary)' }}>Filter by Person:</label>
-                  <select
-                    className="form-input"
-                    value={selectedContactFilter}
-                    onChange={(e) => setSelectedContactFilter(e.target.value)}
-                    style={{ maxWidth: '180px', padding: '4px 8px', fontSize: '13px', cursor: 'pointer', margin: 0 }}
-                  >
-                    <option value="">All Contacts</option>
-                    {uniqueContacts.map(c => (
-                      <option key={c} value={c}>{c}</option>
-                    ))}
-                  </select>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', alignItems: 'center', backgroundColor: 'var(--bg-secondary)', padding: '10px 14px', borderRadius: '6px', marginBottom: '20px', border: '1px solid var(--border)' }}>
                   
-                  {selectedContactFilter && (
-                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  {/* A. Person Filter */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <label style={{ fontSize: '12px', fontWeight: '700', color: 'var(--text-secondary)' }}>Filter by Person:</label>
+                    <select
+                      className="form-input"
+                      value={selectedContactFilter}
+                      onChange={(e) => setSelectedContactFilter(e.target.value)}
+                      style={{ maxWidth: '160px', padding: '4px 8px', fontSize: '13px', cursor: 'pointer', margin: 0 }}
+                    >
+                      <option value="">All Contacts</option>
+                      {uniqueContacts.map(c => (
+                        <option key={c} value={c}>{c}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* B. Date Filter */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <label style={{ fontSize: '12px', fontWeight: '700', color: 'var(--text-secondary)' }}>Filter by Date:</label>
+                    <input
+                      type="date"
+                      className="form-input"
+                      value={selectedDateFilter}
+                      onChange={(e) => setSelectedDateFilter(e.target.value)}
+                      style={{ maxWidth: '140px', padding: '4px 8px', fontSize: '13px', margin: 0, cursor: 'pointer' }}
+                    />
+                  </div>
+
+                  {/* C. Actions & Clears */}
+                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+                    {(selectedContactFilter || selectedDateFilter) && (
                       <button
                         onClick={() => {
-                          setContactName(selectedContactFilter);
-                          setLoanType('lend');
-                          setActiveCreationTab('loan');
-                          // Scroll to create form smoothly
-                          const createSec = document.getElementById('create-record-section');
-                          if (createSec) createSec.scrollIntoView({ behavior: 'smooth' });
+                          setSelectedContactFilter('');
+                          setSelectedDateFilter('');
                         }}
                         className="btn btn-secondary btn-sm"
-                        style={{ padding: '4px 10px', fontSize: '11px', fontWeight: 'bold' }}
+                        style={{ padding: '4px 10px', fontSize: '11px', fontWeight: 'bold', color: 'var(--danger)', borderColor: 'var(--danger)' }}
                       >
-                        Add Record for {selectedContactFilter}
+                        ✕ Clear Filters
                       </button>
-                      <button
-                        onClick={() => triggerSendReport(selectedContactFilter)}
-                        className="btn btn-primary btn-sm"
-                        style={{ padding: '4px 10px', fontSize: '11px', fontWeight: 'bold' }}
-                      >
-                        Email Statement
-                      </button>
-                    </div>
-                  )}
+                    )}
+
+                    {selectedContactFilter && (
+                      <>
+                        <button
+                          onClick={() => {
+                            setContactName(selectedContactFilter);
+                            setLoanType('lend');
+                            setActiveCreationTab('loan');
+                            const createSec = document.getElementById('create-record-section');
+                            if (createSec) createSec.scrollIntoView({ behavior: 'smooth' });
+                          }}
+                          className="btn btn-secondary btn-sm"
+                          style={{ padding: '4px 10px', fontSize: '11px', fontWeight: 'bold' }}
+                        >
+                          Add Record for {selectedContactFilter}
+                        </button>
+                        <button
+                          onClick={() => triggerSendReport(selectedContactFilter)}
+                          className="btn btn-primary btn-sm"
+                          style={{ padding: '4px 10px', fontSize: '11px', fontWeight: 'bold' }}
+                        >
+                          Email Statement
+                        </button>
+                      </>
+                    )}
+                  </div>
+
                 </div>
               )}
 
