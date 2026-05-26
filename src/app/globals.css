@@ -451,3 +451,273 @@ a:hover {
   transform: scale(1.01);
   border-color: var(--border-focus);
 }
+
+/* ===== DASHBOARD GRID LAYOUT ===== */
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: 2fr 1.3fr;
+  gap: 32px;
+}
+
+/* ===== SCROLLABLE TAB BAR ===== */
+.tabs-scroll {
+  display: flex;
+  gap: 4px;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  padding-bottom: 2px;
+}
+.tabs-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+/* ===== FILTER BAR ===== */
+.filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: center;
+  background-color: var(--bg-secondary);
+  padding: 10px 14px;
+  border-radius: 6px;
+  margin-bottom: 20px;
+  border: 1px solid var(--border);
+}
+
+/* ===== TOAST NOTIFICATION ===== */
+.toast-notification {
+  position: fixed;
+  top: 72px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 9999;
+  min-width: 280px;
+  max-width: 90vw;
+  padding: 14px 20px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  box-shadow: 0 12px 40px -8px rgba(0,0,0,0.2);
+  animation: toastIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  backdrop-filter: blur(8px);
+}
+.toast-notification.toast-success {
+  background-color: rgba(16, 185, 129, 0.95);
+  color: #fff;
+}
+.toast-notification.toast-error {
+  background-color: rgba(244, 63, 94, 0.95);
+  color: #fff;
+}
+.toast-notification.toast-info {
+  background-color: rgba(99, 102, 241, 0.95);
+  color: #fff;
+}
+
+@keyframes toastIn {
+  from { opacity: 0; transform: translateX(-50%) translateY(-16px); }
+  to { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+/* ===== SETTLE PANEL ===== */
+.settle-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  background-color: var(--bg-secondary);
+  padding: 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  animation: fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+.settle-panel .settle-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background-color: var(--bg-primary);
+  cursor: pointer;
+  transition: var(--transition);
+  font-size: 13px;
+  font-weight: 600;
+}
+.settle-panel .settle-option:hover,
+.settle-panel .settle-option.selected {
+  border-color: var(--accent);
+  background-color: var(--accent-light);
+}
+
+/* ===== GLOBAL TOUCH & SCROLL ===== */
+html {
+  scroll-behavior: smooth;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ===== MOBILE RESPONSIVE (≤768px) ===== */
+@media (max-width: 768px) {
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+
+  /* Bank accounts panel appears first on mobile */
+  .dashboard-grid > section:last-child {
+    order: -1;
+  }
+
+  .card {
+    padding: 16px;
+    border-radius: 12px;
+  }
+
+  .card:hover {
+    transform: none;
+    box-shadow: var(--shadow);
+  }
+
+  .stat-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 12px !important;
+    margin-bottom: 20px !important;
+  }
+
+  .stat-card {
+    padding: 14px !important;
+    min-height: auto !important;
+  }
+
+  .stat-number {
+    font-size: 22px;
+  }
+
+  .stat-label {
+    font-size: 10px;
+  }
+
+  /* Form inputs — prevent iOS zoom by enforcing 16px min */
+  .form-input {
+    font-size: 16px;
+    padding: 12px 14px;
+    min-height: 44px;
+  }
+
+  /* Buttons — minimum tap target */
+  .btn {
+    min-height: 44px;
+    padding: 10px 18px;
+  }
+
+  .btn-sm {
+    min-height: 38px;
+    padding: 8px 12px;
+    font-size: 12px;
+  }
+
+  .btn-full {
+    width: 100%;
+  }
+
+  /* Filter bar stacks vertically */
+  .filter-bar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    padding: 12px;
+  }
+  .filter-bar > div {
+    width: 100%;
+  }
+  .filter-bar select,
+  .filter-bar input {
+    max-width: 100% !important;
+    width: 100% !important;
+  }
+
+  /* Tab scroll — slightly larger targets */
+  .tabs-scroll button {
+    padding: 8px 14px !important;
+    font-size: 12px !important;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  /* Main container tighter padding */
+  main.container {
+    padding: 16px 12px !important;
+  }
+
+  /* Donut chart legend items */
+  .form-row {
+    gap: 16px;
+  }
+}
+
+/* ===== SMALL PHONES (≤480px) ===== */
+@media (max-width: 480px) {
+  .stat-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+
+  .stat-number {
+    font-size: 18px;
+  }
+
+  .stat-label {
+    font-size: 9px;
+    letter-spacing: 0.04em;
+  }
+
+  h2 {
+    font-size: 20px !important;
+  }
+
+  /* Creation tab labels shortened via content is handled in JS */
+}
+
+/* ===== FOOTER SAFE AREA ===== */
+footer {
+  padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px)) !important;
+}
+
+/* ===== TOUCH DEVICE HOVER SUPPRESSION ===== */
+@media (hover: none) and (pointer: coarse) {
+  .card:hover {
+    transform: none;
+    box-shadow: var(--shadow);
+    border-color: var(--border);
+  }
+
+  .btn:hover {
+    transform: none;
+  }
+
+  .btn-primary:hover {
+    transform: none;
+    box-shadow: var(--shadow-sm);
+  }
+
+  .btn-secondary:hover {
+    transform: none;
+  }
+
+  .btn-danger:hover {
+    transform: none;
+  }
+
+  .btn-success:hover {
+    transform: none;
+  }
+
+  .loan-list-item:hover {
+    transform: none;
+  }
+}

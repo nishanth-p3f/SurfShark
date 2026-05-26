@@ -66,6 +66,17 @@ export default function UserDashboard() {
   // Glossary Accordion State
   const [showGlossary, setShowGlossary] = useState(false);
 
+  // Toast Notification State (replaces alert())
+  const [toast, setToast] = useState({ msg: '', type: '' });
+
+  // Inline Investment Edit State (replaces prompt())
+  const [editingInvId, setEditingInvId] = useState(null);
+  const [editingInvValue, setEditingInvValue] = useState('');
+
+  // Inline Settle Full State (replaces prompt())
+  const [settleLoanId, setSettleLoanId] = useState(null);
+  const [settleAccountId, setSettleAccountId] = useState('');
+
   // Check auth first, then load user data
   useEffect(() => {
     setMounted(true);
@@ -107,6 +118,18 @@ export default function UserDashboard() {
     }
   };
 
+  // Toast notification helper (replaces all alert() calls)
+  const showToast = (msg, type = 'info') => {
+    setToast({ msg, type });
+  };
+
+  // Auto-dismiss toast after 3.5 seconds
+  useEffect(() => {
+    if (!toast.msg) return;
+    const timer = setTimeout(() => setToast({ msg: '', type: '' }), 3500);
+    return () => clearTimeout(timer);
+  }, [toast]);
+
   // --- ACTIONS ---
 
   // Add Bank Account
@@ -124,7 +147,7 @@ export default function UserDashboard() {
       setNewAccBalance('');
       await refreshData();
     } catch (err) {
-      alert('Failed to add bank account');
+      showToast('Failed to add bank account', 'error');
     }
   };
 
@@ -141,7 +164,7 @@ export default function UserDashboard() {
       setEditingAccId(null);
       await refreshData();
     } catch (err) {
-      alert('Failed to update balance');
+      showToast('Failed to update balance', 'error');
     }
   };
 
@@ -152,7 +175,7 @@ export default function UserDashboard() {
       await db.deleteAccount(id);
       await refreshData();
     } catch (err) {
-      alert('Failed to delete account');
+      showToast('Failed to delete account', 'error');
     }
   };
 
@@ -170,7 +193,7 @@ export default function UserDashboard() {
       if (splitMode) {
         const names = splitContacts.split(',').map(n => n.trim()).filter(Boolean);
         if (names.length === 0) {
-          alert('Please enter at least one contact name to split with.');
+          showToast('Please enter at least one contact name to split with.', 'error');
           return;
         }
         const divisor = names.length + (includeSelfInSplit ? 1 : 0);
@@ -213,7 +236,7 @@ export default function UserDashboard() {
       setSplitMode(false);
       await refreshData();
     } catch (err) {
-      alert('Failed to save loan record');
+      showToast('Failed to save loan record', 'error');
     }
   };
 
@@ -251,24 +274,30 @@ export default function UserDashboard() {
       setSyncInvWithAccount('');
       await refreshData();
     } catch (err) {
-      alert('Failed to save investment record');
+      showToast('Failed to save investment record', 'error');
     }
   };
 
-  // Update Investment Value
-  const handleUpdateInvestmentValue = async (id, currentVal) => {
-    const input = prompt(`Update Current Market Value (Current: ₹${currentVal.toLocaleString('en-IN')})`, currentVal.toString());
-    if (input === null) return;
-    const newVal = parseFloat(input);
+  // Update Investment Value (inline edit — no prompt())
+  const handleStartEditInvestment = (inv) => {
+    setEditingInvId(inv.id);
+    setEditingInvValue(inv.current_value.toString());
+  };
+
+  const handleSaveInvestmentValue = async (id) => {
+    const newVal = parseFloat(editingInvValue);
     if (isNaN(newVal) || newVal < 0) {
-      alert('Please enter a valid numeric value.');
+      showToast('Please enter a valid numeric value.', 'error');
       return;
     }
     try {
       await db.updateInvestmentValue(id, newVal);
+      setEditingInvId(null);
+      setEditingInvValue('');
       await refreshData();
+      showToast('Investment value updated!', 'success');
     } catch (err) {
-      alert('Failed to update investment valuation');
+      showToast('Failed to update investment valuation', 'error');
     }
   };
 
@@ -279,34 +308,26 @@ export default function UserDashboard() {
       await db.deleteInvestment(id);
       await refreshData();
     } catch (err) {
-      alert('Failed to delete investment');
+      showToast('Failed to delete investment', 'error');
     }
   };
 
-  // Mark Loan as Fully Settled
-  const handleMarkSettled = async (loanId, currentOutstanding, type) => {
-    let depositMsg = type === 'lend' 
-      ? 'Which account did you receive these funds into?' 
-      : 'Which account did you pay these funds from?';
-      
-    let optionsStr = accounts.map((a, i) => `${i + 1}. ${a.name} (Bal: ₹${a.balance})`).join('\n');
-    let input = prompt(
-      `Settle entire outstanding of ₹${currentOutstanding}?\n\n${depositMsg}\n${optionsStr}\n\nType the bank account number (1, 2 etc.) or leave blank/Cancel to settle without adjusting bank balances:`
-    );
+  // Mark Loan as Fully Settled (inline panel — no prompt())
+  const handleStartSettle = (loanId) => {
+    setSettleLoanId(loanId);
+    setSettleAccountId('');
+  };
 
-    let selectedAccId = null;
-    if (input) {
-      const idx = parseInt(input) - 1;
-      if (idx >= 0 && idx < accounts.length) {
-        selectedAccId = accounts[idx].id;
-      }
-    }
-
+  const handleConfirmSettle = async (loanId, currentOutstanding) => {
     try {
+      const selectedAccId = settleAccountId || null;
       await db.settleFullLoan(loanId, selectedAccId, parseFloat(currentOutstanding));
+      setSettleLoanId(null);
+      setSettleAccountId('');
       await refreshData();
+      showToast('Loan settled successfully!', 'success');
     } catch (err) {
-      alert('Failed to settle loan record');
+      showToast('Failed to settle loan record', 'error');
     }
   };
 
@@ -328,7 +349,7 @@ export default function UserDashboard() {
       setPayAccountId('');
       await refreshData();
     } catch (err) {
-      alert('Failed to process partial payment');
+      showToast('Failed to process partial payment', 'error');
     }
   };
 
@@ -337,9 +358,9 @@ export default function UserDashboard() {
     try {
       await db.snoozeLoan(loanId, hours);
       setSnoozeLoanId(null);
-      alert(`Reminder snoozed for ${hours} hours!`);
+      showToast(`Reminder snoozed for ${hours} hours!`, 'success');
     } catch (err) {
-      alert('Failed to snooze reminder');
+      showToast('Failed to snooze reminder', 'error');
     }
   };
 
@@ -414,7 +435,7 @@ export default function UserDashboard() {
       : loans;
 
     if (targetLoans.length === 0) {
-      alert('No transactions available to export.');
+      showToast('No transactions available to export.', 'error');
       return;
     }
 
@@ -626,6 +647,19 @@ export default function UserDashboard() {
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
       <Header />
+
+      {/* Toast Notification */}
+      {toast.msg && (
+        <div className={`toast-notification toast-${toast.type}`}>
+          <span>{toast.msg}</span>
+          <button
+            onClick={() => setToast({ msg: '', type: '' })}
+            style={{ background: 'none', border: 'none', color: 'inherit', fontSize: '18px', cursor: 'pointer', padding: '0 2px', lineHeight: 1 }}
+          >
+            ×
+          </button>
+        </div>
+      )}
       
       <main className="container" style={{ flex: 1, padding: '32px 20px', animation: 'fadeIn 0.4s ease-out' }}>
         
@@ -1534,11 +1568,11 @@ export default function UserDashboard() {
 
                 </div>
 
-                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '16px' }}>
+                <div style={{ marginTop: '16px' }}>
                   <button 
                     type="submit" 
-                    className={`btn ${loanType === 'lend' ? 'btn-success' : 'btn-danger'}`}
-                    style={{ fontWeight: 'bold', padding: '12px 32px', minWidth: '200px' }}
+                    className={`btn btn-full ${loanType === 'lend' ? 'btn-success' : 'btn-danger'}`}
+                    style={{ fontWeight: 'bold', padding: '14px 32px', fontSize: '14px' }}
                   >
                     Record New Share
                   </button>
@@ -1690,11 +1724,11 @@ export default function UserDashboard() {
 
                 </div>
 
-                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '16px' }}>
+                <div style={{ marginTop: '16px' }}>
                   <button 
                     type="submit" 
-                    className="btn btn-primary"
-                    style={{ fontWeight: 'bold', padding: '12px 32px', minWidth: '200px', backgroundColor: '#6366f1', borderColor: '#4f46e5' }}
+                    className="btn btn-primary btn-full"
+                    style={{ fontWeight: 'bold', padding: '14px 32px', fontSize: '14px', backgroundColor: '#6366f1', borderColor: '#4f46e5' }}
                   >
                     Add Investment Record
                   </button>
@@ -1706,7 +1740,7 @@ export default function UserDashboard() {
         </section>
 
         {/* DASHBOARD CORE GRID LAYOUT */}
-        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1.3fr', gap: '32px' }} className="form-row">
+        <div className="dashboard-grid">
           
           {/* LEFT PANEL: LOANS & INVESTMENTS TRACKING LIST */}
           <section style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -1715,7 +1749,7 @@ export default function UserDashboard() {
               
               {/* EMOJI-FREE TAB CONTROLS (Updated for Investments integration) */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border)', paddingBottom: '12px', marginBottom: '20px', flexWrap: 'wrap', gap: '10px' }}>
-                <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                <div className="tabs-scroll">
                   {[
                     { id: 'active', label: 'All Active' },
                     { id: 'lends', label: 'Lent Out' },
@@ -1750,7 +1784,7 @@ export default function UserDashboard() {
 
               {/* Filtration bar with Person and Date selectors */}
               {activeTab !== 'investments' && (
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', alignItems: 'center', backgroundColor: 'var(--bg-secondary)', padding: '10px 14px', borderRadius: '6px', marginBottom: '20px', border: '1px solid var(--border)' }}>
+                <div className="filter-bar">
                   
                   {/* A. Person Filter */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -1943,21 +1977,41 @@ export default function UserDashboard() {
                             </div>
                           </div>
 
-                          <div style={{ borderTop: '1px solid var(--border)', paddingTop: '10px', marginTop: '2px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <button
-                              onClick={() => handleUpdateInvestmentValue(inv.id, inv.current_value)}
-                              className="btn btn-secondary btn-sm"
-                              style={{ fontSize: '12px', padding: '6px 12px' }}
-                            >
-                              Update Value
-                            </button>
-                            <button
-                              onClick={() => handleDeleteInvestment(inv.id)}
-                              className="btn btn-sm"
-                              style={{ fontSize: '11px', padding: '6px 10px', color: 'var(--danger)', background: 'none', border: 'none', cursor: 'pointer' }}
-                            >
-                              Remove
-                            </button>
+                          <div style={{ borderTop: '1px solid var(--border)', paddingTop: '10px', marginTop: '2px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+                            {editingInvId === inv.id ? (
+                              <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap', width: '100%', animation: 'fadeIn 0.2s ease-out' }}>
+                                <span style={{ fontSize: '12px', fontWeight: '700', color: 'var(--text-secondary)' }}>New Value: ₹</span>
+                                <input
+                                  type="number"
+                                  className="form-input"
+                                  value={editingInvValue}
+                                  onChange={(e) => setEditingInvValue(e.target.value)}
+                                  style={{ padding: '6px 10px', fontSize: '13px', maxWidth: '120px', minHeight: '36px' }}
+                                  step="0.01"
+                                  min="0"
+                                  autoFocus
+                                />
+                                <button onClick={() => handleSaveInvestmentValue(inv.id)} className="btn btn-success btn-sm" style={{ padding: '6px 12px' }}>✓ Save</button>
+                                <button onClick={() => { setEditingInvId(null); setEditingInvValue(''); }} className="btn btn-secondary btn-sm" style={{ padding: '6px 10px' }}>×</button>
+                              </div>
+                            ) : (
+                              <>
+                                <button
+                                  onClick={() => handleStartEditInvestment(inv)}
+                                  className="btn btn-secondary btn-sm"
+                                  style={{ fontSize: '12px', padding: '6px 12px' }}
+                                >
+                                  Update Value
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteInvestment(inv.id)}
+                                  className="btn btn-sm"
+                                  style={{ fontSize: '11px', padding: '6px 10px', color: 'var(--danger)', background: 'none', border: 'none', cursor: 'pointer' }}
+                                >
+                                  Remove
+                                </button>
+                              </>
+                            )}
                           </div>
                         </div>
                       );
@@ -2121,9 +2175,36 @@ export default function UserDashboard() {
                                   ))}
                                   <button type="button" onClick={() => setSnoozeLoanId(null)} className="btn btn-secondary btn-sm" style={{ padding: '4px 8px' }}>×</button>
                                 </div>
+                              ) : settleLoanId === loan.id ? (
+                                <div className="settle-panel">
+                                  <span style={{ fontSize: '12px', fontWeight: '800', color: 'var(--text-primary)' }}>
+                                    Settle ₹{parseFloat(loan.outstanding_amount).toLocaleString('en-IN')} — Select bank account:
+                                  </span>
+                                  <div
+                                    className={`settle-option ${settleAccountId === '' ? 'selected' : ''}`}
+                                    onClick={() => setSettleAccountId('')}
+                                  >
+                                    <span style={{ width: '14px', height: '14px', borderRadius: '50%', border: '2px solid var(--text-muted)', backgroundColor: settleAccountId === '' ? 'var(--accent)' : 'transparent', flexShrink: 0 }} />
+                                    <span>No bank adjustment</span>
+                                  </div>
+                                  {accounts.map(a => (
+                                    <div
+                                      key={a.id}
+                                      className={`settle-option ${settleAccountId === a.id ? 'selected' : ''}`}
+                                      onClick={() => setSettleAccountId(a.id)}
+                                    >
+                                      <span style={{ width: '14px', height: '14px', borderRadius: '50%', border: '2px solid var(--text-muted)', backgroundColor: settleAccountId === a.id ? 'var(--accent)' : 'transparent', flexShrink: 0 }} />
+                                      <span>{loan.type === 'lend' ? 'Receive into' : 'Pay from'} {a.name} <span style={{ color: 'var(--text-muted)', fontSize: '11px' }}>(₹{parseFloat(a.balance).toLocaleString('en-IN')})</span></span>
+                                    </div>
+                                  ))}
+                                  <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
+                                    <button onClick={() => handleConfirmSettle(loan.id, loan.outstanding_amount)} className="btn btn-success btn-sm" style={{ flex: 1, fontWeight: 'bold' }}>✓ Confirm Settle</button>
+                                    <button onClick={() => setSettleLoanId(null)} className="btn btn-secondary btn-sm">Cancel</button>
+                                  </div>
+                                </div>
                               ) : (
                                 <>
-                                  <div style={{ display: 'flex', gap: '8px' }}>
+                                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                                     <button 
                                       onClick={() => { setPayLoanId(loan.id); setPayAmount(''); setPayAccountId(''); }}
                                       className="btn btn-secondary btn-sm"
@@ -2141,7 +2222,7 @@ export default function UserDashboard() {
                                   </div>
                                   <div style={{ display: 'flex', gap: '8px' }}>
                                     <button 
-                                      onClick={() => handleMarkSettled(loan.id, loan.outstanding_amount, loan.type)}
+                                      onClick={() => handleStartSettle(loan.id)}
                                       className="btn btn-success btn-sm"
                                       style={{ fontSize: '12px', padding: '6px 12px', fontWeight: 'bold' }}
                                     >
